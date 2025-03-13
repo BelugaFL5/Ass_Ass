@@ -1,6 +1,6 @@
 ; AyamMan Fitness Club System
 ; NASM x86 Assembly for Linux
-; Combines staff, student, trainer features with loops, jumps, arithmetic
+; Corrected to avoid label redefinition errors
 
 section .data
     ; General Messages
@@ -10,23 +10,23 @@ section .data
     exit_msg db "Exiting system...", 10, 0
 
     ; Sign-In Messages
-    login_prompt db "Enter password (123 for demo): ", 0
-    login_success db "Login successful!", 10, 0
-    login_fail db "Login failed, retry.", 10, 0
+    login_prompt_msg db "Enter password (123 for demo): ", 0
+    login_success_msg db "Login successful!", 10, 0
+    login_fail_msg db "Login failed, retry.", 10, 0
 
     ; Staff Messages
-    staff_menu db "Staff Menu: 1-Charge | 2-Pay | 3-View Students | 0-Back", 10, 0
+    staff_menu_msg db "Staff Menu: 1-Charge | 2-Pay | 3-View Students | 0-Back", 10, 0
     charge_prompt db "Enter charge amount: ", 0
     pay_prompt db "Enter payment amount: ", 0
     receipt_msg db "Receipt issued. New balance: $", 0
 
     ; Student Messages
-    student_menu db "Student Menu: 1-View Balance | 2-View Classes | 0-Back", 10, 0
+    student_menu_msg db "Student Menu: 1-View Balance | 2-View Classes | 0-Back", 10, 0
     balance_msg db "Your balance: $", 0
     class_header db "Class Schedule:", 10, 0
 
     ; Trainer Messages
-    trainer_menu db "Trainer Menu: 1-Upload Class | 2-View Balances | 0-Back", 10, 0
+    trainer_menu_msg db "Trainer Menu: 1-Upload Class | 2-View Balances | 0-Back", 10, 0
     upload_prompt db "Enter class topic (1 char for demo): ", 0
     upload_success db "Class uploaded!", 10, 0
     balances_header db "Student Balances:", 10, 0
@@ -106,7 +106,7 @@ invalid_choice:
 ; Sign-In Routine
 sign_in:
     mov eax, 4
-    mov ecx, login_prompt
+    mov ecx, login_prompt_msg
     mov edx, 25
     int 0x80
 
@@ -118,24 +118,24 @@ sign_in:
     ; Simplified comparison (first 3 chars)
     mov al, [input]
     cmp al, [correct_pass]
-    jne login_fail
+    jne sign_in_fail
     mov al, [input+1]
     cmp al, [correct_pass+1]
-    jne login_fail
+    jne sign_in_fail
     mov al, [input+2]
     cmp al, [correct_pass+2]
-    jne login_fail
+    jne sign_in_fail
 
     mov eax, 4
-    mov ecx, login_success
+    mov ecx, login_success_msg
     mov edx, 15
     int 0x80
     mov eax, 1                  ; Return success
     ret
 
-login_fail:
+sign_in_fail:
     mov eax, 4
-    mov ecx, login_fail
+    mov ecx, login_fail_msg
     mov edx, 18
     int 0x80
     mov eax, 0                  ; Return failure
@@ -144,7 +144,7 @@ login_fail:
 ; Staff Menu
 staff_menu:
     mov eax, 4
-    mov ecx, staff_menu
+    mov ecx, staff_menu_msg
     mov edx, 45
     int 0x80
 
@@ -212,7 +212,7 @@ staff_view:
 ; Student Menu
 student_menu:
     mov eax, 4
-    mov ecx, student_menu
+    mov ecx, student_menu_msg
     mov edx, 45
     int 0x80
 
@@ -259,7 +259,7 @@ class_loop:
 ; Trainer Menu
 trainer_menu:
     mov eax, 4
-    mov ecx, trainer_menu
+    mov ecx, trainer_menu_msg
     mov edx, 45
     int 0x80
 
