@@ -15,7 +15,7 @@ section .data
     ; Sign-In Messages
     login_prompt db "Enter password (123 for demo): ", 0
     login_success db "Login successful!", 10, 0
-    login_fail db "Login failed, retry.", 10, 0
+    login_fail_msg db "Login failed, retry.", 10, 0   ; Renamed to avoid label conflict
 
     ; Staff Messages
     staff_menu db "==============================", 10, "  WELCOME TO THE STAFF MENU  ", 10, "==============================", 10, "1. Charge  |  2. Pay  |  3. View Students  |  0. Back", 10, "==============================", 10, 0
@@ -152,7 +152,7 @@ sign_in:
 
 login_fail:
     mov eax, 4
-    mov ecx, login_fail
+    mov ecx, login_fail_msg     ; Updated label to avoid conflict
     mov edx, 18
     int 0x80
     mov eax, 0                  ; Return failure
@@ -365,4 +365,3 @@ exit_system:
     mov eax, 1
     xor ebx, ebx
     int 0x80
-
