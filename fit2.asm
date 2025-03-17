@@ -7,9 +7,10 @@ section .data
     msg_view_members db 'Viewing members:', 10, 0
     msg_exit db 'Exiting program...', 10, 0
     member_db db 100, 0  ; To store member count (max 100 members)
-    name_db db 100*50     ; To store member names (max 100 members with 50 char max)
-    age_db db 100*1       ; To store ages of members
-    type_db db 100*1      ; To store membership types (1 for monthly, 2 for yearly)
+    name_db resb 100*50  ; To store member names (max 100 members with 50 char max)
+    age_db resb 100*1    ; To store ages of members (max 100 members)
+    type_db resb 100*1   ; To store membership types (1 for monthly, 2 for yearly)
+
 
 section .bss
     menu_option resb 1
