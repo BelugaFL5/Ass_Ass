@@ -6,24 +6,19 @@ section .data
     msg_member_added db 'Member added successfully!', 10, 0
     msg_view_members db 'Viewing members:', 10, 0
     msg_exit db 'Exiting program...', 10, 0
-    member_db db 100, 0  ; To store member count (max 100 members)
-    name_db db 100*20     ; To store member names (max 100 members with 20 char max)
-    age_db db 100*1       ; To store ages of members
-    type_db db 100*1      ; To store membership types (1 for monthly, 2 for yearly)
+    filename db 'members.txt', 0    ; Filename for storing members
+    buffer db 256, 0                ; Buffer for reading file contents
 
 section .bss
     menu_option resb 1
     name resb 50         ; Reserve space for the name
     age resb 1           ; Reserve space for age input
-    member_count resb 1  ; To keep track of number of members
+    type resb 1          ; Reserve space for membership type
 
 section .text
     global _start
 
 _start:
-    ; Initialize member count to 0
-    mov byte [member_count], 0
-
     ; Main loop to show menu
 menu_loop:
     ; Print the menu prompt
@@ -98,30 +93,39 @@ add_member:
     ; Read membership type
     mov eax, 3
     mov ebx, 0
-    mov ecx, type_db
+    mov ecx, type
     mov edx, 1
     int 0x80
 
-    ; Add member information to "database"
-    ; Store member name
-    mov eax, [member_count]
-    mov ebx, eax           ; Load member count into ebx
-    mov ecx, name          ; Load the address of name
-    mov edx, 50            ; Set max name length to 50
-    call store_member_name
+    ; Open the file for appending (create if doesn't exist)
+    mov eax, 5              ; syscall for sys_open
+    mov ebx, filename       ; filename
+    mov ecx, 0xA2           ; O_WRONLY | O_CREAT | O_APPEND
+    mov edx, 0644           ; permissions (rw-r--r--)
+    int 0x80                ; call kernel
+    mov ebx, eax            ; Store the file descriptor in ebx
 
-    ; Store member age
-    mov eax, [member_count]
-    mov ecx, age
-    call store_member_age
+    ; Write the name to the file
+    mov eax, 4              ; syscall for sys_write
+    mov ecx, name           ; address of name to write
+    mov edx, 50             ; max name length (50)
+    int 0x80                ; call kernel
 
-    ; Store membership type
-    mov eax, [member_count]
-    mov ecx, type_db
-    call store_member_type
+    ; Write the age to the file
+    mov eax, 4              ; syscall for sys_write
+    mov ecx, age            ; address of age to write
+    mov edx, 1              ; write 1 byte for age
+    int 0x80                ; call kernel
 
-    ; Increment member count
-    inc byte [member_count]
+    ; Write the membership type to the file
+    mov eax, 4              ; syscall for sys_write
+    mov ecx, type           ; address of type to write
+    mov edx, 1              ; write 1 byte for type
+    int 0x80                ; call kernel
+
+    ; Close the file
+    mov eax, 6              ; syscall for sys_close
+    int 0x80                ; call kernel
 
     ; Print success message
     mov eax, 4
@@ -141,9 +145,31 @@ view_members:
     mov edx, 18
     int 0x80
 
-    ; Display member details
-    ; Print all member details here (names, ages, types)
-    ; For simplicity, this part is just a placeholder
+    ; Open the file for reading
+    mov eax, 5              ; syscall for sys_open
+    mov ebx, filename       ; filename to open
+    mov ecx, 0              ; O_RDONLY (open for reading)
+    mov edx, 0              ; permissions
+    int 0x80                ; call kernel
+    mov ebx, eax            ; Store file descriptor in ebx
+
+    ; Read and display members
+    ; Read from the file into the buffer
+    mov eax, 3              ; syscall for sys_read
+    mov ecx, buffer         ; buffer to read data into
+    mov edx, 256            ; buffer size
+    int 0x80                ; call kernel
+
+    ; Print the content of the buffer
+    mov eax, 4              ; syscall for sys_write
+    mov ebx, 1              ; file descriptor (stdout)
+    mov ecx, buffer         ; buffer with file content
+    mov edx, 256            ; length of data to write (buffer size)
+    int 0x80                ; call kernel
+
+    ; Close the file
+    mov eax, 6              ; syscall for sys_close
+    int 0x80                ; call kernel
 
     ; Return to menu
     jmp menu_loop
@@ -160,18 +186,3 @@ exit_program:
     mov eax, 1          ; syscall number for sys_exit
     xor ebx, ebx        ; exit code 0
     int 0x80            ; call kernel
-
-store_member_name:
-    ; Store name in name_db at index ebx (member count)
-    ; This is a placeholder for actual storing logic
-    ret
-
-store_member_age:
-    ; Store age in age_db at index ebx (member count)
-    ; This is a placeholder for actual storing logic
-    ret
-
-store_member_type:
-    ; Store membership type in type_db at index ebx (member count)
-    ; This is a placeholder for actual storing logic
-    ret
