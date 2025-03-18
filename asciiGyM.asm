@@ -63,7 +63,7 @@ section .data
     time_len      equ $ - time_prompt
 
     trainer_prompt db 'Enter Trainer Name: ', 0
-    trainer_len    equ $ - trainer_prompt
+    trainer_prompt_len equ $ - trainer_prompt  ; Renamed to avoid conflict
 
     success_msg   db 'Operation completed successfully!', 10, 0
     success_len   equ $ - success_msg
@@ -371,7 +371,7 @@ upload_class:
     mov eax, 4
     mov ebx, 1
     mov ecx, trainer_prompt
-    mov edx, trainer_len
+    mov edx, trainer_prompt_len  ; Updated to use the new label
     int 0x80
     mov eax, 3
     mov ebx, 0
