@@ -1,4 +1,5 @@
 section .data
+    filename db 'members.txt', 0    ; Filename for storing members
     prompt_menu db '1. Add Member', 10, '2. View Members', 10, '3. Exit', 10, 'Select an option: ', 0
     prompt_name db 'Enter name: ', 0
     prompt_age db 'Enter age: ', 0
@@ -6,14 +7,13 @@ section .data
     msg_member_added db 'Member added successfully!', 10, 0
     msg_view_members db 'Viewing members:', 10, 0
     msg_exit db 'Exiting program...', 10, 0
-    filename db 'members.txt', 0    ; Filename for storing members
-    buffer db 256, 0                ; Buffer for reading file contents
 
 section .bss
-    menu_option resb 1
-    name resb 50         ; Reserve space for the name
-    age resb 1           ; Reserve space for age input
-    type resb 1          ; Reserve space for membership type
+    menu_option resb 1         ; Reserve 1 byte for menu input
+    name resb 50              ; Reserve 50 bytes for the member's name
+    age resb 1                ; Reserve 1 byte for the age
+    type resb 1               ; Reserve 1 byte for the membership type
+    buffer resb 256           ; Reserve 256 bytes for the file buffer
 
 section .text
     global _start
