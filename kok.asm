@@ -184,8 +184,8 @@ authenticate_user:
     int 0x80
 
     ; Remove newline from user_id
-    call strip_newline
     mov edi, user_id
+    call strip_newline
 
     mov eax, 4
     mov ebx, 1
