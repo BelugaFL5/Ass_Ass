@@ -71,6 +71,9 @@ section .data
     trainer_prompt db 'Enter Trainer Name: ', 0
     trainer_prompt_len equ $ - trainer_prompt
 
+    course_prompt  db 'Enter Course Assigned (e.g., C001): ', 0
+    course_len     equ $ - course_prompt
+
     success_msg   db 'Operation completed successfully!', 10, 0
     success_len   equ $ - success_msg
 
@@ -80,7 +83,7 @@ section .data
     exit_msg      db 'Exiting system...', 10, 0
     exit_len      equ $ - exit_msg
 
-    balance_msg   db 'Your balance: ', 0
+    balance_msg   db 'Your outstanding fee: ', 0
     balance_len   equ $ - balance_msg
 
     error_msg     db 'Error: Invalid input!', 10, 0
@@ -96,8 +99,17 @@ section .data
     student_header db '--- Student List ---', 10, 0
     student_header_len equ $ - student_header
 
+    student_columns db 'ID,Name,Password,Courses Assigned,Outstanding Fee', 10, 0
+    student_columns_len equ $ - student_columns
+
+    separator_line db '________________________', 10, 0
+    separator_line_len equ $ - separator_line
+
     trainer_header db '--- Trainer List ---', 10, 0
     trainer_header_len equ $ - trainer_header
+
+    trainer_columns db 'ID,Name,Password,,Balance', 10, 0
+    trainer_columns_len equ $ - trainer_columns
 
     ; Pre-populated data
     class1        db 'Zumba,010125,0900,Trainer1,50', 10, 0
@@ -106,8 +118,8 @@ section .data
     class4        db 'Dynamic Yoga,040125,1200,Trainer4,70', 10, 0
     class5        db 'Cardio,050125,1300,Trainer5,55', 10, 0
 
-    student1      db 'S001,John Doe,pass123,,0', 10, 0
-    student2      db 'S002,Jane Smith,pass456,,0', 10, 0
+    student1      db 'S001,John Doe,pass123,C001,0', 10, 0
+    student2      db 'S002,Jane Smith,pass456,C002,0', 10, 0
 
     trainer1      db 'T001,Trainer1,tpass123,,0', 10, 0
     trainer2      db 'T002,Trainer2,tpass456,,0', 10, 0
@@ -125,8 +137,9 @@ section .bss
     class_date    resb 7       ; Store date (DDMMYY) + newline
     class_time    resb 5       ; Store time (HHMM) + newline
     trainer_name  resb 21      ; Store trainer name + newline
+    courses_assigned resb 11   ; Store course assigned (e.g., C001) + newline
     buffer        resb 256     ; Buffer for file operations
-    balance       resb 11      ; Store student balance + newline
+    outstanding_fee resb 11    ; Store student outstanding fee + newline
     file_handle   resd 1       ; Store file descriptor
     temp_buffer   resb 256     ; Temporary buffer for file operations
 
@@ -384,6 +397,12 @@ manage_student:
     mov edx, student_header_len
     int 0x80
 
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, student_columns
+    mov edx, student_columns_len
+    int 0x80
+
     mov eax, 5
     mov ebx, student_file
     mov ecx, 0
@@ -397,10 +416,12 @@ display_student_loop:
     cmp eax, 0
     je end_display_student
 
+    mov esi, buffer
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, 1
     mov ecx, buffer
-    mov edx, 256
     int 0x80
     mov eax, 4
     mov ebx, 1
@@ -412,6 +433,12 @@ display_student_loop:
 end_display_student:
     mov eax, 6
     mov ebx, [file_handle]
+    int 0x80
+
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, separator_line
+    mov edx, separator_line_len
     int 0x80
 
     ; Now show the manage student menu
@@ -478,8 +505,21 @@ add_student:
     mov edi, user_pass
     call strip_newline
 
-    mov byte [balance], '0'
-    mov byte [balance + 1], 0
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, course_prompt
+    mov edx, course_len
+    int 0x80
+    mov eax, 3
+    mov ebx, 0
+    mov ecx, courses_assigned
+    mov edx, 11
+    int 0x80
+    mov edi, courses_assigned
+    call strip_newline
+
+    mov byte [outstanding_fee], '0'
+    mov byte [outstanding_fee + 1], 0
     call write_student_to_file
     mov eax, 4
     mov ebx, 1
@@ -518,6 +558,12 @@ manage_trainer:
     mov edx, trainer_header_len
     int 0x80
 
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, trainer_columns
+    mov edx, trainer_columns_len
+    int 0x80
+
     mov eax, 5
     mov ebx, trainer_file
     mov ecx, 0
@@ -531,10 +577,12 @@ display_trainer_loop:
     cmp eax, 0
     je end_display_trainer
 
+    mov esi, buffer
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, 1
     mov ecx, buffer
-    mov edx, 256
     int 0x80
     mov eax, 4
     mov ebx, 1
@@ -546,6 +594,12 @@ display_trainer_loop:
 end_display_trainer:
     mov eax, 6
     mov ebx, [file_handle]
+    int 0x80
+
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, separator_line
+    mov edx, separator_line_len
     int 0x80
 
     ; Now show the manage trainer menu
@@ -612,8 +666,8 @@ add_trainer:
     mov edi, user_pass
     call strip_newline
 
-    mov byte [balance], '0'
-    mov byte [balance + 1], 0
+    mov byte [outstanding_fee], '0'
+    mov byte [outstanding_fee + 1], 0
     call write_trainer_to_file
     mov eax, 4
     mov ebx, 1
@@ -671,7 +725,7 @@ charge_student:
     mov edi, amount
     call strip_newline
 
-    call update_balance_add
+    call update_fee_add
     mov eax, 4
     mov ebx, 1
     mov ecx, success_msg
@@ -706,7 +760,7 @@ make_payment:
     mov edi, amount
     call strip_newline
 
-    call update_balance_sub
+    call update_fee_sub
     mov eax, 4
     mov ebx, 1
     mov ecx, success_msg
@@ -814,10 +868,17 @@ read_loop:
     cmp eax, 0
     je end_read_empty
 
+    mov esi, buffer
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, 1
     mov ecx, buffer
-    mov edx, 256
+    int 0x80
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, newline
+    mov edx, 1
     int 0x80
     jmp read_loop
 
@@ -860,7 +921,7 @@ student_menu_loop:
     jmp student_menu_loop
 
 check_balance:
-    call read_student_balance
+    call read_student_fee
     mov eax, 4
     mov ebx, 1
     mov ecx, balance_msg
@@ -868,7 +929,7 @@ check_balance:
     int 0x80
     mov eax, 4
     mov ebx, 1
-    mov ecx, balance
+    mov ecx, outstanding_fee
     mov edx, 11
     int 0x80
     mov eax, 4
@@ -892,10 +953,17 @@ class_read_loop:
     cmp eax, 0
     je class_read_empty
 
+    mov esi, buffer
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, 1
     mov ecx, buffer
-    mov edx, 256
+    int 0x80
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, newline
+    mov edx, 1
     int 0x80
     jmp class_read_loop
 
@@ -981,7 +1049,7 @@ init_student_file:
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, student1
-    mov edx, 24
+    mov edx, 27
     int 0x80
     cmp eax, -1
     je file_error
@@ -989,7 +1057,7 @@ init_student_file:
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, student2
-    mov edx, 26
+    mov edx, 29
     int 0x80
     cmp eax, -1
     je file_error
@@ -1033,53 +1101,82 @@ init_trainer_file:
 write_student_to_file:
     mov eax, 5
     mov ebx, student_file
-    mov ecx, 0xA2
+    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
     mov edx, 0644
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
+    ; Write user_id
+    mov esi, user_id
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, user_id
-    mov edx, 10
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write name
+    mov esi, name
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, name
-    mov edx, 50
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write user_pass
+    mov esi, user_pass
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, user_pass
-    mov edx, 10
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write courses_assigned
+    mov esi, courses_assigned
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, [file_handle]
+    mov ecx, courses_assigned
+    int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write outstanding_fee
+    mov esi, outstanding_fee
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
-    mov ecx, balance
-    mov edx, 10
+    mov ecx, outstanding_fee
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1094,53 +1191,73 @@ write_student_to_file:
 write_trainer_to_file:
     mov eax, 5
     mov ebx, trainer_file
-    mov ecx, 0xA2
+    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
     mov edx, 0644
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
+    ; Write user_id
+    mov esi, user_id
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, user_id
-    mov edx, 10
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write name
+    mov esi, name
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, name
-    mov edx, 50
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write user_pass
+    mov esi, user_pass
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, user_pass
-    mov edx, 10
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write outstanding_fee
+    mov esi, outstanding_fee
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
-    mov ecx, balance
-    mov edx, 10
+    mov ecx, outstanding_fee
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1155,58 +1272,82 @@ write_trainer_to_file:
 write_class_to_file:
     mov eax, 5
     mov ebx, class_file
-    mov ecx, 0xA2
+    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
     mov edx, 0644
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
+    ; Write class_topic
+    mov esi, class_topic
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, class_topic
-    mov edx, 20
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write class_date
+    mov esi, class_date
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, class_date
-    mov edx, 6
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write class_time
+    mov esi, class_time
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, class_time
-    mov edx, 4
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write trainer_name
+    mov esi, trainer_name
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, trainer_name
-    mov edx, 20
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
+
+    ; Write amount
+    mov esi, amount
+    call strlen
+    mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, amount
-    mov edx, 10
     int 0x80
+
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1292,7 +1433,7 @@ skip_end:
     inc esi
     ret
 
-read_student_balance:
+read_student_fee:
     mov eax, 5
     mov ebx, student_file
     mov ecx, 0
@@ -1301,20 +1442,20 @@ read_student_balance:
     je file_error
     mov [file_handle], eax
 
-read_balance_loop:
+read_fee_loop:
     call read_line
     cmp eax, 0
-    je balance_not_found
+    je fee_not_found
 
     mov esi, buffer
     mov edi, user_id
     call compare_field
     cmp eax, 0
-    jne read_balance_loop
+    jne read_fee_loop
 
     call find_fifth_field
-    mov edi, balance
-copy_balance:
+    mov edi, outstanding_fee
+copy_fee:
     mov al, [esi]
     cmp al, 0
     je end_copy
@@ -1323,24 +1464,24 @@ copy_balance:
     mov [edi], al
     inc esi
     inc edi
-    jmp copy_balance
+    jmp copy_fee
 end_copy:
     mov byte [edi], 0
-    jmp balance_found
+    jmp fee_found
 
-balance_not_found:
-    mov byte [balance], '0'
-    mov byte [balance + 1], 0
+fee_not_found:
+    mov byte [outstanding_fee], '0'
+    mov byte [outstanding_fee + 1], 0
 
-balance_found:
+fee_found:
     mov eax, 6
     mov ebx, [file_handle]
     int 0x80
     ret
 
-update_balance_add:
-    call read_student_balance
-    mov esi, balance
+update_fee_add:
+    call read_student_fee
+    mov esi, outstanding_fee
     call atoi
     mov ebx, eax
 
@@ -1348,24 +1489,24 @@ update_balance_add:
     call atoi
     add ebx, eax
 
-    mov edi, balance
+    mov edi, outstanding_fee
     call itoa
     call rewrite_student_file
     ret
 
-update_balance_sub:
-    call read_student_balance
-    mov esi, balance
+update_fee_sub:
+    call read_student_fee
+    mov esi, outstanding_fee
     call atoi
     mov ebx, eax
 
     mov esi, amount
     call atoi
     sub ebx, eax
-    jge balance_ok
+    jge fee_ok
     mov ebx, 0
-balance_ok:
-    mov edi, balance
+fee_ok:
+    mov edi, outstanding_fee
     call itoa
     call rewrite_student_file
     ret
@@ -1417,7 +1558,7 @@ reverse_loop:
 rewrite_student_file:
     mov eax, 5
     mov ebx, student_file
-    mov ecx, 0xA2
+    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
     mov edx, 0644
     int 0x80
     cmp eax, -1
@@ -1465,6 +1606,19 @@ find_newline:
     jne find_newline
 replace_newline:
     mov byte [esi - 1], 0
+    ret
+
+strlen:
+    xor eax, eax
+    mov edi, esi
+strlen_loop:
+    mov bl, [edi]
+    cmp bl, 0
+    je strlen_end
+    inc eax
+    inc edi
+    jmp strlen_loop
+strlen_end:
     ret
 
 file_error:
