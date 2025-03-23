@@ -92,6 +92,13 @@ section .data
     empty_file_msg db 'File is empty or does not exist.', 10, 0
     empty_file_len equ $ - empty_file_msg
 
+    ; Headers for display
+    student_header db '--- Student List ---', 10, 0
+    student_header_len equ $ - student_header
+
+    trainer_header db '--- Trainer List ---', 10, 0
+    trainer_header_len equ $ - trainer_header
+
     ; Pre-populated data
     class1        db 'Zumba,010125,0900,Trainer1,50', 10, 0
     class2        db 'Core,020125,1000,Trainer2,40', 10, 0
@@ -370,6 +377,44 @@ staff_menu_loop:
     jmp staff_menu_loop
 
 manage_student:
+    ; Display all student details
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, student_header
+    mov edx, student_header_len
+    int 0x80
+
+    mov eax, 5
+    mov ebx, student_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+display_student_loop:
+    call read_line
+    cmp eax, 0
+    je end_display_student
+
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, buffer
+    mov edx, 256
+    int 0x80
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp display_student_loop
+
+end_display_student:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+
+    ; Now show the manage student menu
     mov eax, 4
     mov ebx, 1
     mov ecx, manage_student_menu
@@ -466,6 +511,44 @@ delete_student:
     jmp manage_student
 
 manage_trainer:
+    ; Display all trainer details
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, trainer_header
+    mov edx, trainer_header_len
+    int 0x80
+
+    mov eax, 5
+    mov ebx, trainer_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+display_trainer_loop:
+    call read_line
+    cmp eax, 0
+    je end_display_trainer
+
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, buffer
+    mov edx, 256
+    int 0x80
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp display_trainer_loop
+
+end_display_trainer:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+
+    ; Now show the manage trainer menu
     mov eax, 4
     mov ebx, 1
     mov ecx, manage_trainer_menu
