@@ -108,7 +108,7 @@ section .data
     trainer_header db '--- Trainer List ---', 10, 0
     trainer_header_len equ $ - trainer_header
 
-    trainer_columns db 'ID,Name,Password,,Balance', 10, 0
+    trainer_columns db 'ID,Name,Password,Courses Teached by', 10, 0
     trainer_columns_len equ $ - trainer_columns
 
     admin_str     db 'admin', 0
@@ -136,12 +136,14 @@ section .text
     global _start
 
 _start:
+    ; Print ASCII art
     mov eax, 4
     mov ebx, 1
     mov ecx, ascii_art
     mov edx, ascii_len
     int 0x80
 
+    ; Print welcome message
     mov eax, 4
     mov ebx, 1
     mov ecx, welcome_msg
@@ -961,7 +963,7 @@ end_class_read:
     int 0x80
     jmp student_menu_loop
 
-; --- Helper Procedures ---
+; --- Helper Functions ---
 write_student_to_file:
     mov eax, 5
     mov ebx, student_file
@@ -1202,44 +1204,48 @@ read_line:
     mov edx, 256
     int 0x80
     cmp eax, -1
-    je file_error
+    je .read_fail
     cmp eax, 0
-    je read_line_end
+    je .read_end
     mov edi, buffer
     mov ecx, eax
     mov al, 10
     repne scasb
-    jne read_line_no_newline
+    jne .read_no_newline
     mov byte [edi - 1], 0
     mov eax, 1
     ret
-read_line_no_newline:
+.read_no_newline:
+    mov byte [edi], 0
+    mov eax, 1
+    ret
+.read_end:
     mov eax, 0
     ret
-read_line_end:
-    mov eax, 0
+.read_fail:
+    mov eax, -1
     ret
 
 compare_field:
     mov al, [esi]
     mov bl, [edi]
     cmp al, ','
-    je field_end
+    je .field_end
     cmp al, 0
-    je field_end
+    je .field_end
     cmp bl, 0
-    je field_end
+    je .field_end
     cmp al, bl
-    jne not_equal
+    jne .not_equal
     inc esi
     inc edi
     jmp compare_field
-field_end:
+.field_end:
     cmp bl, 0
-    jne not_equal
+    jne .not_equal
     mov eax, 0
     ret
-not_equal:
+.not_equal:
     mov eax, 1
     ret
 
@@ -1249,392 +1255,41 @@ find_third_field:
     call skip_field
     ret
 
-find_fifth_field:
-    mov esi, buffer
-    call skip_field
-    call skip_field
-    call skip_field
-    call skip_field
-    ret
-
 skip_field:
     mov al, [esi]
     cmp al, 0
-    je skip_end
+    je .skip_end
     cmp al, ','
-    je skip_end
+    je .skip_end
     inc esi
     jmp skip_field
-skip_end:
+.skip_end:
     inc esi
-    ret
-
-read_student_fee:
-    mov eax, 5
-    mov ebx, student_file
-    mov ecx, 0
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-read_fee_loop:
-    call read_line
-    cmp eax, 0
-    je fee_not_found
-
-    mov esi, buffer
-    mov edi, user_id
-    call compare_field
-    cmp eax, 0
-    jne read_fee_loop
-
-    call find_fifth_field
-    mov edi, outstanding_fee
-copy_fee:
-    mov al, [esi]
-    cmp al, 0
-    je end_copy
-    cmp al, ','
-    je end_copy
-    mov [edi], al
-    inc esi
-    inc edi
-    jmp copy_fee
-end_copy:
-    mov byte [edi], 0
-    jmp fee_found
-
-fee_not_found:
-    mov byte [outstanding_fee], '0'
-    mov byte [outstanding_fee + 1], 0
-
-fee_found:
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
-read_student_record:
-    mov eax, 5
-    mov ebx, student_file
-    mov ecx, 0
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-read_record_loop:
-    call read_line
-    cmp eax, 0
-    je record_not_found
-
-    mov esi, buffer
-    mov edi, user_id
-    call compare_field
-    cmp eax, 0
-    jne read_record_loop
-
-    mov esi, buffer
-    mov edi, full_record
-copy_record:
-    mov al, [esi]
-    mov [edi], al
-    cmp al, 0
-    je record_copied
-    inc esi
-    inc edi
-    jmp copy_record
-record_copied:
-    mov esi, buffer
-    call skip_field
-    mov edi, name
-copy_name:
-    mov al, [esi]
-    cmp al, ','
-    je name_done
-    mov [edi], al
-    inc esi
-    inc edi
-    jmp copy_name
-name_done:
-    mov byte [edi], 0
-    inc esi
-    call skip_field  ; Skip password
-    mov edi, courses_assigned
-copy_courses:
-    mov al, [esi]
-    cmp al, ','
-    je courses_done
-    mov [edi], al
-    inc esi
-    inc edi
-    jmp copy_courses
-courses_done:
-    mov byte [edi], 0
-    inc esi
-    mov edi, outstanding_fee
-copy_fee_full:
-    mov al, [esi]
-    cmp al, 0
-    je fee_done
-    mov [edi], al
-    inc esi
-    inc edi
-    jmp copy_fee_full
-fee_done:
-    mov byte [edi], 0
-    jmp record_found
-
-record_not_found:
-    mov byte [outstanding_fee], '0'
-    mov byte [outstanding_fee + 1], 0
-
-record_found:
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
-update_fee_add:
-    call read_student_record
-    mov esi, outstanding_fee
-    call atoi
-    mov ebx, eax
-    mov esi, amount
-    call atoi
-    add ebx, eax
-    mov edi, outstanding_fee
-    call itoa
-    call rewrite_student_file_full
-    ret
-
-update_fee_sub:
-    call read_student_record
-    mov esi, outstanding_fee
-    call atoi
-    mov ebx, eax
-    mov esi, amount
-    call atoi
-    sub ebx, eax
-    jge fee_ok
-    mov ebx, 0
-fee_ok:
-    mov edi, outstanding_fee
-    call itoa
-    call rewrite_student_file_full
-    ret
-
-rewrite_student_file_full:
-    mov eax, 5
-    mov ebx, temp_file
-    mov ecx, 0xA2 | 0x200
-    mov edx, 0644
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [temp_handle], eax
-
-    mov eax, 5
-    mov ebx, student_file
-    mov ecx, 0
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-rewrite_loop:
-    call read_line
-    cmp eax, 0
-    je write_updated
-
-    mov esi, buffer
-    mov edi, user_id
-    call compare_field
-    cmp eax, 0
-    je skip_original
-
-    mov esi, buffer
-    call strlen
-    mov edx, eax
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, buffer
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, newline
-    mov edx, 1
-    int 0x80
-    jmp rewrite_loop
-
-skip_original:
-    jmp rewrite_loop
-
-write_updated:
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, user_id
-    mov esi, user_id
-    call strlen
-    mov edx, eax
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, comma
-    mov edx, 1
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, name
-    mov esi, name
-    call strlen
-    mov edx, eax
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, comma
-    mov edx, 1
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, user_pass
-    mov esi, user_pass
-    call strlen
-    mov edx, eax
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, comma
-    mov edx, 1
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, courses_assigned
-    mov esi, courses_assigned
-    call strlen
-    mov edx, eax
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, comma
-    mov edx, 1
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, outstanding_fee
-    mov esi, outstanding_fee
-    call strlen
-    mov edx, eax
-    int 0x80
-    mov eax, 4
-    mov ebx, [temp_handle]
-    mov ecx, newline
-    mov edx, 1
-    int 0x80
-
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    mov eax, 6
-    mov ebx, [temp_handle]
-    int 0x80
-
-    mov eax, 39  ; sys_rename
-    mov ebx, temp_file
-    mov ecx, student_file
-    int 0x80
-    ret
-
-atoi:
-    xor eax, eax
-    xor ecx, ecx
-atoi_loop:
-    movzx ebx, byte [esi + ecx]
-    cmp bl, 0
-    je atoi_end
-    sub bl, '0'
-    imul eax, 10
-    add eax, ebx
-    inc ecx
-    jmp atoi_loop
-atoi_end:
-    ret
-
-itoa:
-    push ebx
-    mov eax, ebx
-    mov ebx, 10
-    xor ecx, ecx
-itoa_loop:
-    xor edx, edx
-    div ebx
-    add dl, '0'
-    mov [edi + ecx], dl
-    inc ecx
-    test eax, eax
-    jnz itoa_loop
-    mov byte [edi + ecx], 0
-    mov esi, edi
-    lea edi, [edi + ecx - 1]
-    shr ecx, 1
-reverse_loop:
-    mov al, [esi]
-    mov bl, [edi]
-    mov [esi], bl
-    mov [edi], al
-    inc esi
-    dec edi
-    loop reverse_loop
-    pop ebx
-    ret
-
-delete_from_file:
-    ret  ; Placeholder
-
-delete_from_file_trainer:
-    ret  ; Placeholder
-
-strcmp:
-    mov al, [esi]
-    mov bl, [edi]
-    cmp al, bl
-    jne strcmp_diff
-    cmp al, 0
-    je strcmp_equal
-    inc esi
-    inc edi
-    jmp strcmp
-strcmp_diff:
-    mov eax, 1
-    ret
-strcmp_equal:
-    mov eax, 0
     ret
 
 strip_newline:
     mov esi, edi
-find_newline:
+.find_newline:
     lodsb
     cmp al, 10
-    je replace_newline
+    je .replace_newline
     cmp al, 0
-    jne find_newline
-replace_newline:
+    jne .find_newline
+.replace_newline:
     mov byte [esi - 1], 0
     ret
 
 strlen:
     xor eax, eax
     mov edi, esi
-strlen_loop:
+.strlen_loop:
     mov bl, [edi]
     cmp bl, 0
-    je strlen_end
+    je .strlen_end
     inc eax
     inc edi
-    jmp strlen_loop
-strlen_end:
+    jmp .strlen_loop
+.strlen_end:
     ret
 
 file_error:
