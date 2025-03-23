@@ -111,19 +111,6 @@ section .data
     trainer_columns db 'ID,Name,Password,,Balance', 10, 0
     trainer_columns_len equ $ - trainer_columns
 
-    ; Pre-populated data
-    class1        db 'Zumba,010125,0900,Trainer1,50', 10, 0
-    class2        db 'Core,020125,1000,Trainer2,40', 10, 0
-    class3        db 'Motion,030125,1100,Trainer3,60', 10, 0
-    class4        db 'Dynamic Yoga,040125,1200,Trainer4,70', 10, 0
-    class5        db 'Cardio,050125,1300,Trainer5,55', 10, 0
-
-    student1      db 'S001,John Doe,pass123,C001,0', 10, 0
-    student2      db 'S002,Jane Smith,pass456,C002,0', 10, 0
-
-    trainer1      db 'T001,Trainer1,tpass123,,0', 10, 0
-    trainer2      db 'T002,Trainer2,tpass456,,0', 10, 0
-
     admin_str     db 'admin', 0
 
 section .bss
@@ -846,6 +833,19 @@ upload_class:
     mov edi, trainer_name
     call strip_newline
 
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, amount_prompt
+    mov edx, amount_len
+    int 0x80
+    mov eax, 3
+    mov ebx, 0
+    mov ecx, amount
+    mov edx, 11
+    int 0x80
+    mov edi, amount
+    call strip_newline
+
     call write_class_to_file
     mov eax, 4
     mov ebx, 1
@@ -991,46 +991,6 @@ init_class_file:
     je file_error
     mov [file_handle], eax
 
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, class1
-    mov edx, 29
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, class2
-    mov edx, 28
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, class3
-    mov edx, 30
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, class4
-    mov edx, 35
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, class5
-    mov edx, 29
-    int 0x80
-    cmp eax, -1
-    je file_error
-
     mov eax, 6
     mov ebx, [file_handle]
     int 0x80
@@ -1046,22 +1006,6 @@ init_student_file:
     je file_error
     mov [file_handle], eax
 
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, student1
-    mov edx, 27
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, student2
-    mov edx, 29
-    int 0x80
-    cmp eax, -1
-    je file_error
-
     mov eax, 6
     mov ebx, [file_handle]
     int 0x80
@@ -1076,22 +1020,6 @@ init_trainer_file:
     cmp eax, -1
     je file_error
     mov [file_handle], eax
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, trainer1
-    mov edx, 25
-    int 0x80
-    cmp eax, -1
-    je file_error
-
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, trainer2
-    mov edx, 26
-    int 0x80
-    cmp eax, -1
-    je file_error
 
     mov eax, 6
     mov ebx, [file_handle]
