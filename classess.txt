@@ -1,0 +1,5 @@
+Zumba,010125,0900,Trainer1,50
+Core,020125,1000,Trainer2,40
+Motion,030125,1100,Trainer3,60
+Dynamic Yoga,040125,1200,Trainer4,70
+Cardio,050125,1300,Trainer5,55
