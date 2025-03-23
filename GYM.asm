@@ -17,12 +17,13 @@ section .data
     student_file  db 'students.txt', 0
     trainer_file  db 'trainers.txt', 0
     class_file    db 'classes.txt', 0
+    temp_file     db 'temp.txt', 0
 
     ; Common delimiters
     comma         db ',', 0
     newline       db 10, 0
 
-    ; Prompts with length calculations
+    ; Prompts and messages
     welcome_msg   db 'Welcome to AyamMan Fitness Club System', 10, 0
     welcome_len   equ $ - welcome_msg
 
@@ -95,7 +96,6 @@ section .data
     empty_file_msg db 'File is empty or does not exist.', 10, 0
     empty_file_len equ $ - empty_file_msg
 
-    ; Headers for display
     student_header db '--- Student List ---', 10, 0
     student_header_len equ $ - student_header
 
@@ -114,50 +114,39 @@ section .data
     admin_str     db 'admin', 0
 
 section .bss
-    login_choice  resb 2       ; Store login choice (1-4) + newline
-    user_id       resb 11      ; Store user ID + newline
-    user_pass     resb 11      ; Store user password + newline
-    menu_option   resb 2       ; Store menu option + newline
-    name          resb 51      ; Store name + newline
-    amount        resb 11      ; Store amount for payment/charge + newline
-    class_topic   resb 21      ; Store class topic + newline
-    class_date    resb 7       ; Store date (DDMMYY) + newline
-    class_time    resb 5       ; Store time (HHMM) + newline
-    trainer_name  resb 21      ; Store trainer name + newline
-    courses_assigned resb 11   ; Store course assigned (e.g., C001) + newline
-    buffer        resb 256     ; Buffer for file operations
-    outstanding_fee resb 11    ; Store student outstanding fee + newline
-    file_handle   resd 1       ; Store file descriptor
-    temp_buffer   resb 256     ; Temporary buffer for file operations
+    login_choice  resb 2
+    user_id       resb 11
+    user_pass     resb 11
+    menu_option   resb 2
+    name          resb 51
+    amount        resb 11
+    class_topic   resb 21
+    class_date    resb 7
+    class_time    resb 5
+    trainer_name  resb 21
+    courses_assigned resb 11
+    buffer        resb 256
+    outstanding_fee resb 11
+    file_handle   resd 1
+    temp_handle   resd 1
+    temp_buffer   resb 256
+    full_record   resb 256  ; Added to store full student record
 
 section .text
     global _start
 
 _start:
-    ; Print ASCII art
     mov eax, 4
     mov ebx, 1
     mov ecx, ascii_art
     mov edx, ascii_len
     int 0x80
 
-    ; Print welcome message
     mov eax, 4
     mov ebx, 1
     mov ecx, welcome_msg
     mov edx, welcome_len
     int 0x80
-
-    ; Initialize system files
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, init_msg
-    mov edx, init_len
-    int 0x80
-
-    call init_class_file
-    call init_student_file
-    call init_trainer_file
 
 main_loop:
     mov eax, 4
@@ -185,7 +174,6 @@ main_loop:
     je exit_system
     jmp main_loop
 
-; --- Login Procedures ---
 staff_login:
     call authenticate_user
     cmp eax, 0
@@ -347,7 +335,6 @@ invalid_login:
     int 0x80
     jmp main_loop
 
-; --- Staff Menu ---
 staff_menu_loop:
     mov eax, 4
     mov ebx, 1
@@ -377,7 +364,6 @@ staff_menu_loop:
     jmp staff_menu_loop
 
 manage_student:
-    ; Display all student details
     mov eax, 4
     mov ebx, 1
     mov ecx, student_header
@@ -428,7 +414,6 @@ end_display_student:
     mov edx, separator_line_len
     int 0x80
 
-    ; Now show the manage student menu
     mov eax, 4
     mov ebx, 1
     mov ecx, manage_student_menu
@@ -538,7 +523,6 @@ delete_student:
     jmp manage_student
 
 manage_trainer:
-    ; Display all trainer details
     mov eax, 4
     mov ebx, 1
     mov ecx, trainer_header
@@ -589,7 +573,6 @@ end_display_trainer:
     mov edx, separator_line_len
     int 0x80
 
-    ; Now show the manage trainer menu
     mov eax, 4
     mov ebx, 1
     mov ecx, manage_trainer_menu
@@ -755,7 +738,6 @@ make_payment:
     int 0x80
     jmp staff_menu_loop
 
-; --- Trainer Menu ---
 trainer_menu_loop:
     mov eax, 4
     mov ebx, 1
@@ -895,7 +877,6 @@ end_read:
     int 0x80
     jmp trainer_menu_loop
 
-; --- Student Menu ---
 student_menu_loop:
     mov eax, 4
     mov ebx, 1
@@ -981,51 +962,6 @@ end_class_read:
     jmp student_menu_loop
 
 ; --- Helper Procedures ---
-init_class_file:
-    mov eax, 5
-    mov ebx, class_file
-    mov ecx, 0xA2
-    mov edx, 0644
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
-init_student_file:
-    mov eax, 5
-    mov ebx, student_file
-    mov ecx, 0xA2
-    mov edx, 0644
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
-init_trainer_file:
-    mov eax, 5
-    mov ebx, trainer_file
-    mov ecx, 0xA2
-    mov edx, 0644
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
 write_student_to_file:
     mov eax, 5
     mov ebx, student_file
@@ -1036,7 +972,6 @@ write_student_to_file:
     je file_error
     mov [file_handle], eax
 
-    ; Write user_id
     mov esi, user_id
     call strlen
     mov edx, eax
@@ -1044,14 +979,12 @@ write_student_to_file:
     mov ebx, [file_handle]
     mov ecx, user_id
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write name
     mov esi, name
     call strlen
     mov edx, eax
@@ -1059,14 +992,12 @@ write_student_to_file:
     mov ebx, [file_handle]
     mov ecx, name
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write user_pass
     mov esi, user_pass
     call strlen
     mov edx, eax
@@ -1074,14 +1005,12 @@ write_student_to_file:
     mov ebx, [file_handle]
     mov ecx, user_pass
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write courses_assigned
     mov esi, courses_assigned
     call strlen
     mov edx, eax
@@ -1089,14 +1018,12 @@ write_student_to_file:
     mov ebx, [file_handle]
     mov ecx, courses_assigned
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write outstanding_fee
     mov esi, outstanding_fee
     call strlen
     mov edx, eax
@@ -1104,7 +1031,6 @@ write_student_to_file:
     mov ebx, [file_handle]
     mov ecx, outstanding_fee
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1119,14 +1045,13 @@ write_student_to_file:
 write_trainer_to_file:
     mov eax, 5
     mov ebx, trainer_file
-    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
+    mov ecx, 0xA2 | 0x200
     mov edx, 0644
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
-    ; Write user_id
     mov esi, user_id
     call strlen
     mov edx, eax
@@ -1134,14 +1059,12 @@ write_trainer_to_file:
     mov ebx, [file_handle]
     mov ecx, user_id
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write name
     mov esi, name
     call strlen
     mov edx, eax
@@ -1149,14 +1072,12 @@ write_trainer_to_file:
     mov ebx, [file_handle]
     mov ecx, name
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write user_pass
     mov esi, user_pass
     call strlen
     mov edx, eax
@@ -1164,7 +1085,6 @@ write_trainer_to_file:
     mov ebx, [file_handle]
     mov ecx, user_pass
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
@@ -1177,7 +1097,6 @@ write_trainer_to_file:
     mov edx, 1
     int 0x80
 
-    ; Write outstanding_fee
     mov esi, outstanding_fee
     call strlen
     mov edx, eax
@@ -1185,7 +1104,6 @@ write_trainer_to_file:
     mov ebx, [file_handle]
     mov ecx, outstanding_fee
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1200,14 +1118,13 @@ write_trainer_to_file:
 write_class_to_file:
     mov eax, 5
     mov ebx, class_file
-    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
+    mov ecx, 0xA2 | 0x200
     mov edx, 0644
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
-    ; Write class_topic
     mov esi, class_topic
     call strlen
     mov edx, eax
@@ -1215,14 +1132,12 @@ write_class_to_file:
     mov ebx, [file_handle]
     mov ecx, class_topic
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write class_date
     mov esi, class_date
     call strlen
     mov edx, eax
@@ -1230,14 +1145,12 @@ write_class_to_file:
     mov ebx, [file_handle]
     mov ecx, class_date
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write class_time
     mov esi, class_time
     call strlen
     mov edx, eax
@@ -1245,14 +1158,12 @@ write_class_to_file:
     mov ebx, [file_handle]
     mov ecx, class_time
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write trainer_name
     mov esi, trainer_name
     call strlen
     mov edx, eax
@@ -1260,14 +1171,12 @@ write_class_to_file:
     mov ebx, [file_handle]
     mov ecx, trainer_name
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, comma
     mov edx, 1
     int 0x80
 
-    ; Write amount
     mov esi, amount
     call strlen
     mov edx, eax
@@ -1275,7 +1184,6 @@ write_class_to_file:
     mov ebx, [file_handle]
     mov ecx, amount
     int 0x80
-
     mov eax, 4
     mov ebx, [file_handle]
     mov ecx, newline
@@ -1407,27 +1315,105 @@ fee_found:
     int 0x80
     ret
 
+read_student_record:
+    mov eax, 5
+    mov ebx, student_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+read_record_loop:
+    call read_line
+    cmp eax, 0
+    je record_not_found
+
+    mov esi, buffer
+    mov edi, user_id
+    call compare_field
+    cmp eax, 0
+    jne read_record_loop
+
+    mov esi, buffer
+    mov edi, full_record
+copy_record:
+    mov al, [esi]
+    mov [edi], al
+    cmp al, 0
+    je record_copied
+    inc esi
+    inc edi
+    jmp copy_record
+record_copied:
+    mov esi, buffer
+    call skip_field
+    mov edi, name
+copy_name:
+    mov al, [esi]
+    cmp al, ','
+    je name_done
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_name
+name_done:
+    mov byte [edi], 0
+    inc esi
+    call skip_field  ; Skip password
+    mov edi, courses_assigned
+copy_courses:
+    mov al, [esi]
+    cmp al, ','
+    je courses_done
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_courses
+courses_done:
+    mov byte [edi], 0
+    inc esi
+    mov edi, outstanding_fee
+copy_fee_full:
+    mov al, [esi]
+    cmp al, 0
+    je fee_done
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_fee_full
+fee_done:
+    mov byte [edi], 0
+    jmp record_found
+
+record_not_found:
+    mov byte [outstanding_fee], '0'
+    mov byte [outstanding_fee + 1], 0
+
+record_found:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+    ret
+
 update_fee_add:
-    call read_student_fee
+    call read_student_record
     mov esi, outstanding_fee
     call atoi
     mov ebx, eax
-
     mov esi, amount
     call atoi
     add ebx, eax
-
     mov edi, outstanding_fee
     call itoa
-    call rewrite_student_file
+    call rewrite_student_file_full
     ret
 
 update_fee_sub:
-    call read_student_fee
+    call read_student_record
     mov esi, outstanding_fee
     call atoi
     mov ebx, eax
-
     mov esi, amount
     call atoi
     sub ebx, eax
@@ -1436,7 +1422,128 @@ update_fee_sub:
 fee_ok:
     mov edi, outstanding_fee
     call itoa
-    call rewrite_student_file
+    call rewrite_student_file_full
+    ret
+
+rewrite_student_file_full:
+    mov eax, 5
+    mov ebx, temp_file
+    mov ecx, 0xA2 | 0x200
+    mov edx, 0644
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [temp_handle], eax
+
+    mov eax, 5
+    mov ebx, student_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+rewrite_loop:
+    call read_line
+    cmp eax, 0
+    je write_updated
+
+    mov esi, buffer
+    mov edi, user_id
+    call compare_field
+    cmp eax, 0
+    je skip_original
+
+    mov esi, buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp rewrite_loop
+
+skip_original:
+    jmp rewrite_loop
+
+write_updated:
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, user_id
+    mov esi, user_id
+    call strlen
+    mov edx, eax
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, name
+    mov esi, name
+    call strlen
+    mov edx, eax
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, user_pass
+    mov esi, user_pass
+    call strlen
+    mov edx, eax
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, courses_assigned
+    mov esi, courses_assigned
+    call strlen
+    mov edx, eax
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, outstanding_fee
+    mov esi, outstanding_fee
+    call strlen
+    mov edx, eax
+    int 0x80
+    mov eax, 4
+    mov ebx, [temp_handle]
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+    mov eax, 6
+    mov ebx, [temp_handle]
+    int 0x80
+
+    mov eax, 39  ; sys_rename
+    mov ebx, temp_file
+    mov ecx, student_file
+    int 0x80
     ret
 
 atoi:
@@ -1468,7 +1575,6 @@ itoa_loop:
     test eax, eax
     jnz itoa_loop
     mov byte [edi + ecx], 0
-    ; Reverse string
     mov esi, edi
     lea edi, [edi + ecx - 1]
     shr ecx, 1
@@ -1483,29 +1589,11 @@ reverse_loop:
     pop ebx
     ret
 
-rewrite_student_file:
-    mov eax, 5
-    mov ebx, student_file
-    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
-    mov edx, 0644
-    int 0x80
-    cmp eax, -1
-    je file_error
-    mov [file_handle], eax
-
-    call write_student_to_file  ; Simplified: appends updated record
-    mov eax, 6
-    mov ebx, [file_handle]
-    int 0x80
-    ret
-
 delete_from_file:
-    ; Simplified placeholder: actual deletion requires rewriting file excluding the record
-    ret
+    ret  ; Placeholder
 
 delete_from_file_trainer:
-    ; Simplified placeholder
-    ret
+    ret  ; Placeholder
 
 strcmp:
     mov al, [esi]
