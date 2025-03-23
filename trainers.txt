@@ -1,1 +1,5 @@
-T001,Trainer1,tpass123,,0T002,Trainer2,tpass456,,0
+T001,Trainer1,tpass123,Zumba
+T002,Trainer2,tpass456,Core
+T003,Trainer3,tpass789,Motion
+T004,Trainer4,tpass012,Dynamic Yoga
+T005,Trainer5,tpass345,Cardio
