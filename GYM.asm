@@ -17,6 +17,7 @@ section .data
     student_file  db 'students.txt', 0
     trainer_file  db 'trainers.txt', 0
     class_file    db 'classes.txt', 0
+    temp_file     db 'temp.txt', 0  ; Temporary file for rewriting files
 
     ; Common delimiters
     comma         db ',', 0
@@ -131,7 +132,6 @@ section .bss
     outstanding_fee resb 11    ; Store student outstanding fee + newline
     file_handle   resd 1       ; Store file descriptor
     temp_buffer   resb 256     ; Temporary buffer for file operations
-    temp_file     db 'temp.txt', 0  ; Temporary file for rewriting trainers.txt
 
 section .text
     global _start
@@ -1306,7 +1306,7 @@ update_trainer_courses:
     int 0x80
     cmp eax, -1
     je file_error
-    mov edi, eax  ; Store temp file handle in edi
+    mov ebp, eax  ; Store temp file handle in ebp (avoid conflict with edi)
 
 update_trainer_loop:
     call read_line
@@ -1324,18 +1324,18 @@ update_trainer_loop:
     call strlen
     mov edx, eax
     mov eax, 4
-    mov ebx, edi
+    mov ebx, ebp
     mov ecx, buffer
     int 0x80
     mov eax, 4
-    mov ebx, edi
+    mov ebx, ebp
     mov ecx, newline
     mov edx, 1
     int 0x80
     jmp update_trainer_loop
 
 update_trainer_match:
-    ; Write ID
+    ; Parse the line and copy ID field to temp_buffer
     mov esi, buffer
     mov edi, temp_buffer
 copy_id:
@@ -1351,7 +1351,7 @@ end_copy_id:
     inc edi
     inc esi
 
-    ; Write Name
+    ; Copy Name field
 copy_name:
     mov al, [esi]
     cmp al, ','
@@ -1365,7 +1365,7 @@ end_copy_name:
     inc edi
     inc esi
 
-    ; Write Password
+    ; Copy Password field
 copy_password:
     mov al, [esi]
     cmp al, ','
@@ -1422,11 +1422,11 @@ end_append_course:
     call strlen
     mov edx, eax
     mov eax, 4
-    mov ebx, edi
+    mov ebx, ebp
     mov ecx, temp_buffer
     int 0x80
     mov eax, 4
-    mov ebx, edi
+    mov ebx, ebp
     mov ecx, newline
     mov edx, 1
     int 0x80
@@ -1437,7 +1437,7 @@ end_update_trainer:
     mov ebx, [file_handle]
     int 0x80
     mov eax, 6
-    mov ebx, edi
+    mov ebx, ebp
     int 0x80
 
     ; Replace trainers.txt with temp.txt
@@ -1579,11 +1579,14 @@ update_fee_add:
 
     mov esi, amount
     call atoi
+    cmp eax, 0
+    je skip_update_fee_add  ; Skip if amount is invalid
     add ebx, eax
 
     mov edi, outstanding_fee
     call itoa
     call rewrite_student_file
+skip_update_fee_add:
     ret
 
 update_fee_sub:
@@ -1594,6 +1597,8 @@ update_fee_sub:
 
     mov esi, amount
     call atoi
+    cmp eax, 0
+    je skip_update_fee_sub  ; Skip if amount is invalid
     sub ebx, eax
     jge fee_ok
     mov ebx, 0
@@ -1601,11 +1606,30 @@ fee_ok:
     mov edi, outstanding_fee
     call itoa
     call rewrite_student_file
+skip_update_fee_sub:
     ret
 
 atoi:
     xor eax, eax
     xor ecx, ecx
+atoi_validate:
+    mov bl, [esi + ecx]
+    cmp bl, 0
+    je atoi_loop
+    cmp bl, '0'
+    jl invalid_input
+    cmp bl, '9'
+    jg invalid_input
+    inc ecx
+    jmp atoi_validate
+invalid_input:
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, error_msg
+    mov edx, error_len
+    int 0x80
+    mov eax, 0  ; Return 0 on invalid input
+    ret
 atoi_loop:
     movzx ebx, byte [esi + ecx]
     cmp bl, 0
@@ -1648,27 +1672,276 @@ reverse_loop:
     ret
 
 rewrite_student_file:
+    ; Open students.txt for reading
     mov eax, 5
     mov ebx, student_file
-    mov ecx, 0xA2 | 0x200  ; O_CREAT | O_RDWR | O_APPEND
-    mov edx, 0644
+    mov ecx, 0
     int 0x80
     cmp eax, -1
     je file_error
     mov [file_handle], eax
 
-    call write_student_to_file  ; Simplified: appends updated record
+    ; Open temp.txt for writing
+    mov eax, 5
+    mov ebx, temp_file
+    mov ecx, 0xA2
+    mov edx, 0644
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov edi, eax  ; Store temp file handle in edi
+
+rewrite_student_loop:
+    call read_line
+    cmp eax, 0
+    je end_rewrite_student
+
+    mov esi, buffer
+    mov edx, user_id
+    call compare_field
+    cmp eax, 0
+    je update_student_record
+
+    ; Write unchanged line to temp file
+    mov esi, buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp rewrite_student_loop
+
+update_student_record:
+    ; Write updated record (user_id,name,user_pass,courses_assigned,outstanding_fee)
+    mov esi, user_id
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, user_id
+    int 0x80
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+
+    mov esi, name
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, name
+    int 0x80
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+
+    mov esi, user_pass
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, user_pass
+    int 0x80
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+
+    mov esi, courses_assigned
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, courses_assigned
+    int 0x80
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, comma
+    mov edx, 1
+    int 0x80
+
+    mov esi, outstanding_fee
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, outstanding_fee
+    int 0x80
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+
+    jmp rewrite_student_loop
+
+end_rewrite_student:
     mov eax, 6
     mov ebx, [file_handle]
+    int 0x80
+    mov eax, 6
+    mov ebx, edi
+    int 0x80
+
+    ; Replace students.txt with temp.txt
+    mov eax, 10  ; unlink
+    mov ebx, student_file
+    int 0x80
+
+    mov eax, 12  ; rename
+    mov ebx, temp_file
+    mov ecx, student_file
     int 0x80
     ret
 
 delete_from_file:
-    ; Simplified placeholder: actual deletion requires rewriting file excluding the record
+    ; Open students.txt for reading
+    mov eax, 5
+    mov ebx, student_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+    ; Open temp.txt for writing
+    mov eax, 5
+    mov ebx, temp_file
+    mov ecx, 0xA2
+    mov edx, 0644
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov edi, eax  ; Store temp file handle in edi
+
+delete_loop:
+    call read_line
+    cmp eax, 0
+    je end_delete
+
+    mov esi, buffer
+    mov edx, user_id
+    call compare_field
+    cmp eax, 0
+    je skip_record  ; If ID matches, skip this record
+
+    ; Write unchanged line to temp file
+    mov esi, buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+
+skip_record:
+    jmp delete_loop
+
+end_delete:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+    mov eax, 6
+    mov ebx, edi
+    int 0x80
+
+    ; Replace students.txt with temp.txt
+    mov eax, 10  ; unlink
+    mov ebx, student_file
+    int 0x80
+
+    mov eax, 12  ; rename
+    mov ebx, temp_file
+    mov ecx, student_file
+    int 0x80
     ret
 
 delete_from_file_trainer:
-    ; Simplified placeholder
+    ; Open trainers.txt for reading
+    mov eax, 5
+    mov ebx, trainer_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+    ; Open temp.txt for writing
+    mov eax, 5
+    mov ebx, temp_file
+    mov ecx, 0xA2
+    mov edx, 0644
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov edi, eax  ; Store temp file handle in edi
+
+delete_trainer_loop:
+    call read_line
+    cmp eax, 0
+    je end_delete_trainer
+
+    mov esi, buffer
+    mov edx, user_id
+    call compare_field
+    cmp eax, 0
+    je skip_trainer_record  ; If ID matches, skip this record
+
+    ; Write unchanged line to temp file
+    mov esi, buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+
+skip_trainer_record:
+    jmp delete_trainer_loop
+
+end_delete_trainer:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+    mov eax, 6
+    mov ebx, edi
+    int 0x80
+
+    ; Replace trainers.txt with temp.txt
+    mov eax, 10  ; unlink
+    mov ebx, trainer_file
+    int 0x80
+
+    mov eax, 12  ; rename
+    mov ebx, temp_file
+    mov ecx, trainer_file
+    int 0x80
     ret
 
 strcmp:
