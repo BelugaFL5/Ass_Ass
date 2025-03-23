@@ -21,6 +21,7 @@ section .data
     ; Common delimiters
     comma         db ',', 0
     newline       db 10, 0
+    semicolon     db ';', 0  ; Separator for multiple courses in "Courses Teached by"
 
     ; Prompts with length calculations
     welcome_msg   db 'Welcome to AyamMan Fitness Club System', 10, 0
@@ -102,13 +103,13 @@ section .data
     student_columns db 'ID,Name,Password,Courses Assigned,Outstanding Fee', 10, 0
     student_columns_len equ $ - student_columns
 
-    separator_line db '________________________', 10, 0
+    separator_line db '__________________________________________', 10, 0
     separator_line_len equ $ - separator_line
 
     trainer_header db '--- Trainer List ---', 10, 0
     trainer_header_len equ $ - trainer_header
 
-    trainer_columns db 'ID,Name,Password,,Balance', 10, 0
+    trainer_columns db 'ID,Name,Password,Courses Teached by', 10, 0
     trainer_columns_len equ $ - trainer_columns
 
     admin_str     db 'admin', 0
@@ -125,10 +126,12 @@ section .bss
     class_time    resb 5       ; Store time (HHMM) + newline
     trainer_name  resb 21      ; Store trainer name + newline
     courses_assigned resb 11   ; Store course assigned (e.g., C001) + newline
+    courses_teached resb 51    ; Store courses teached by trainer (e.g., Zumba;Core)
     buffer        resb 256     ; Buffer for file operations
     outstanding_fee resb 11    ; Store student outstanding fee + newline
     file_handle   resd 1       ; Store file descriptor
     temp_buffer   resb 256     ; Temporary buffer for file operations
+    temp_file     db 'temp.txt', 0  ; Temporary file for rewriting trainers.txt
 
 section .text
     global _start
@@ -653,8 +656,7 @@ add_trainer:
     mov edi, user_pass
     call strip_newline
 
-    mov byte [outstanding_fee], '0'
-    mov byte [outstanding_fee + 1], 0
+    mov byte [courses_teached], 0  ; Initialize "Courses Teached by" as empty
     call write_trainer_to_file
     mov eax, 4
     mov ebx, 1
@@ -846,7 +848,12 @@ upload_class:
     mov edi, amount
     call strip_newline
 
+    ; Write class to classes.txt
     call write_class_to_file
+
+    ; Update trainers.txt with the new course in "Courses Teached by"
+    call update_trainer_courses
+
     mov eax, 4
     mov ebx, 1
     mov ecx, success_msg
@@ -1171,19 +1178,13 @@ write_trainer_to_file:
     mov edx, 1
     int 0x80
 
-    mov eax, 4
-    mov ebx, [file_handle]
-    mov ecx, comma
-    mov edx, 1
-    int 0x80
-
-    ; Write outstanding_fee
-    mov esi, outstanding_fee
+    ; Write courses_teached
+    mov esi, courses_teached
     call strlen
     mov edx, eax
     mov eax, 4
     mov ebx, [file_handle]
-    mov ecx, outstanding_fee
+    mov ecx, courses_teached
     int 0x80
 
     mov eax, 4
@@ -1287,6 +1288,169 @@ write_class_to_file:
     int 0x80
     ret
 
+update_trainer_courses:
+    ; Open trainers.txt for reading
+    mov eax, 5
+    mov ebx, trainer_file
+    mov ecx, 0
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov [file_handle], eax
+
+    ; Open temp.txt for writing
+    mov eax, 5
+    mov ebx, temp_file
+    mov ecx, 0xA2
+    mov edx, 0644
+    int 0x80
+    cmp eax, -1
+    je file_error
+    mov edi, eax  ; Store temp file handle in edi
+
+update_trainer_loop:
+    call read_line
+    cmp eax, 0
+    je end_update_trainer
+
+    mov esi, buffer
+    mov edx, user_id
+    call compare_field
+    cmp eax, 0
+    je update_trainer_match
+
+    ; Write unchanged line to temp file
+    mov esi, buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp update_trainer_loop
+
+update_trainer_match:
+    ; Write ID
+    mov esi, buffer
+    mov edi, temp_buffer
+copy_id:
+    mov al, [esi]
+    cmp al, ','
+    je end_copy_id
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_id
+end_copy_id:
+    mov byte [edi], ','
+    inc edi
+    inc esi
+
+    ; Write Name
+copy_name:
+    mov al, [esi]
+    cmp al, ','
+    je end_copy_name
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_name
+end_copy_name:
+    mov byte [edi], ','
+    inc edi
+    inc esi
+
+    ; Write Password
+copy_password:
+    mov al, [esi]
+    cmp al, ','
+    je end_copy_password
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_password
+end_copy_password:
+    mov byte [edi], ','
+    inc edi
+    inc esi
+
+    ; Check if "Courses Teached by" is empty
+    mov al, [esi]
+    cmp al, 10
+    je courses_empty
+    cmp al, 0
+    je courses_empty
+
+    ; Copy existing courses
+copy_courses:
+    mov al, [esi]
+    cmp al, 10
+    je end_copy_courses
+    cmp al, 0
+    je end_copy_courses
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp copy_courses
+end_copy_courses:
+    mov byte [edi], ';'
+    inc edi
+    jmp append_new_course
+
+courses_empty:
+append_new_course:
+    ; Append new class_topic
+    mov esi, class_topic
+append_course:
+    mov al, [esi]
+    cmp al, 0
+    je end_append_course
+    mov [edi], al
+    inc esi
+    inc edi
+    jmp append_course
+end_append_course:
+    mov byte [edi], 0
+
+    ; Write updated line to temp file
+    mov esi, temp_buffer
+    call strlen
+    mov edx, eax
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, temp_buffer
+    int 0x80
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, newline
+    mov edx, 1
+    int 0x80
+    jmp update_trainer_loop
+
+end_update_trainer:
+    mov eax, 6
+    mov ebx, [file_handle]
+    int 0x80
+    mov eax, 6
+    mov ebx, edi
+    int 0x80
+
+    ; Replace trainers.txt with temp.txt
+    mov eax, 10  ; unlink
+    mov ebx, trainer_file
+    int 0x80
+
+    mov eax, 12  ; rename
+    mov ebx, temp_file
+    mov ecx, trainer_file
+    int 0x80
+    ret
+
 read_line:
     mov eax, 3
     mov ebx, [file_handle]
@@ -1314,7 +1478,7 @@ read_line_end:
 
 compare_field:
     mov al, [esi]
-    mov bl, [edi]
+    mov bl, [edx]
     cmp al, ','
     je field_end
     cmp al, 0
@@ -1324,7 +1488,7 @@ compare_field:
     cmp al, bl
     jne not_equal
     inc esi
-    inc edi
+    inc edx
     jmp compare_field
 field_end:
     cmp bl, 0
