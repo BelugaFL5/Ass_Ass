@@ -837,7 +837,7 @@ upload_class:
     int 0x80
     jmp trainer_menu_loop
 
-check Student_balances:
+check_student_balances:
     mov eax, 5
     mov ebx, student_file
     mov ecx, 0
